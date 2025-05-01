@@ -15,7 +15,7 @@ void processBuffer(byte* buffer, int size);
 
 void setup() {
   // put your setup code here, to run once:
-  Serial.begin(9600);   // USB serial
+  Serial.begin(115200);   // USB serial
   Serial7.begin(9600, SERIAL_8E1); // RS485 Communication to Offset Sensor
 
   pinMode(DE, OUTPUT);
@@ -40,34 +40,30 @@ void loop()
 
   uint16_t result = 0;
   uint16_t distance_mm = 0;
-  uint8_t received[32] = {0};
+  uint8_t received[64] = {0};
   // inquire_result();
   // distance_mm = calculate_distance();
   // Serial.println(distance_mm);
 
-  if (Serial7.available() >= 32) 
+  if (Serial7.available() >= 64) 
   {  
     Serial.println("Received msg");
-    Serial7.readBytes(received, 32);
+    Serial7.readBytes(received, 64);
     
-    result |= (received[3] & 0x0F) << 12;
-    result |= (received[2] & 0x0F) << 8;
-    result |= (received[1] & 0x0F) << 4;
-    result |= (received[0] & 0x0F);
+    // result |= (received[3] & 0x0F) << 12;
+    // result |= (received[2] & 0x0F) << 8;
+    // result |= (received[1] & 0x0F) << 4;
+    // result |= (received[0] & 0x0F);
 
-    printByteArrayBinary(received, 32);
+    // printByteArrayBinary(received, 32);
     
-    distance_mm = (2500 + (result * 2500) / 0x4000);
+    // distance_mm = (2500 + (result * 2500) / 0x4000);
 
     
     // Serial.println(distance_mm);
     // Serial.print(" mm");
+    processBuffer(received, 64);
   } 
-  processBuffer(received, 32);
-
-  delay(500);
-  
-
 }
 
 // put function definitions here:
@@ -130,7 +126,14 @@ uint16_t calculate_distance(void)
 }
 
 void processBuffer(byte* buffer, int size) {
+
+  
+  uint16_t distance_mm = 0;
+
+  byte valid_buffer[32] = {0};
+
   for (int i = 0; i <= size - 4; i++) {
+    uint16_t result = 0;
     byte ref_bits = (buffer[i] >> 4) & 0b11; // extract bits 5 and 4
 
     // Check next 3 bytes
@@ -145,12 +148,21 @@ void processBuffer(byte* buffer, int size) {
 
     if (group_valid) {
       // Process valid group
-      Serial.print("Valid group at index ");
-      Serial.println(i);
+      // Serial.print("Valid group at index ");
+      // Serial.println(i);
+
       for (int j = 0; j < 4; j++) {
-        Serial.println(buffer[i + j], BIN);
+        // Serial.println(buffer[i + j], BIN);
+        valid_buffer[i + j] = buffer[i + j];
+        result |= (buffer[i+j] & 0x0F) << 4*j;
       }
+
+      distance_mm = (2500 + (result * 2500) / 0x4000);
+      Serial.print("distance mm :");
+      Serial.println(distance_mm);
+
       i += 3; // skip ahead by 4 total
     }
   }
+  //printByteArrayBinary(valid_buffer, 32);
 }
