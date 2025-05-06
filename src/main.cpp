@@ -69,10 +69,6 @@ void setup() {
   Serial6.begin(9600, SERIAL_8E1); // RS485 Communication to Offset Sensor
   Serial8.begin(9600, SERIAL_8E1); // RS485 Communication to Offset Sensor
 
-  if(CAN0.begin(MCP_ANY, CAN_500KBPS, MCP_16MHZ) == CAN_OK) Serial.println("MCP2515 Initialized Successfully!");
-  else Serial.println("Error Initializing MCP2515...");
-
-  CAN0.setMode(MCP_NORMAL);   // Change to normal mode to allow messages to be transmitted
 
   // for (int i = 0; i < NUM_PORTS; i++) {
   //   if (i == 6)
