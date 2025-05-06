@@ -19,6 +19,13 @@ unsigned long lastPrintTime = 0;
 
 uint16_t distance_array[8] = {0};
 
+struct SensorReading {
+  uint8_t rawData[4]; // 4 bytes from sensor (each byte: 4 bit header, 4 bit data)
+  uint16_t headers; //4x 4 bits
+  uint16_t data; // 4x 4 bits
+  uint16_t distance; // in mm
+};
+
 // Create array of Serial pointers
 HardwareSerial* serialPorts[NUM_PORTS] = {
   &Serial1, &Serial2, &Serial3, &Serial4,
@@ -126,6 +133,23 @@ void loop()
 
   for (int i = 0; i < NUM_PORTS; i++)
   {
+
+    if (serialPorts[i]->available() >= 4){
+      SensorReading reading;
+
+      serialPorts[i]->readBytes(reading.rawData, 4);
+
+      reading = extractData(reading);
+
+      if (!areHeadersValid(reading)){continue;}
+
+      processdata(data)
+
+      moving avg stuff (totals, avg, etc)
+
+
+
+    }
 
     while (serialPorts[i]->available()) 
     {
@@ -393,4 +417,33 @@ uint16_t processSerial(HardwareSerial& serialPort, const char* label)
     // }
   }
   return dist_array[6];
+}
+
+SensorReading extractData(SensorReading reading)
+{
+  // Extract the 4-bit header and data from the raw data
+  for (int i = 0; i < 4; i++) {
+    reading.headers |= (reading.rawData[i] >> 4) & 0x0F;
+    reading.data |= (reading.rawData[i] & 0x0F) << (i * 4);
+  }
+
+  return reading;
+}
+
+bool areHeadersValid(SensorReading reading){
+  // Check if the headers are valid (e.g., all the same or within a certain range)
+  uint8_t firstHeader = reading.headers & 0x0F; // Extract the first header
+  for (int i = 1; i < 4; i++) {
+    if ((reading.headers >> (i * 4) & 0x0F) != firstHeader) {
+      return false; // Headers are not valid
+    }
+  }
+  return true; // Headers are valid
+
+}
+
+SensorReading processData(SensorReading reading){
+  // Process the data (e.g., convert to distance, etc.)
+  reading.distance = (2500 + (reading.data * 2500) / 0x4000); // Example conversion
+  return reading;
 }
