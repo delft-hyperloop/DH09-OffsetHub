@@ -1,6 +1,5 @@
 #include <Arduino.h>
 //#include <SoftwareSerial.h>
-#include <mcp_can.h>
 
 // put function declarations here:
 int myFunction(int, int);
@@ -16,7 +15,7 @@ const int NUM_PORTS = 8;
 const int PACKET_SIZE = 16;
 const unsigned long PRINT_INTERVAL = 50; // milliseconds
 unsigned long lastPrintTime = 0;
-MCP_CAN CAN0(10);     // Set CS to pin 10
+
 
 uint16_t distance_array[8] = {0};
 
@@ -104,6 +103,13 @@ void setup() {
   //obtain_serial_number();
 
   start_data_stream();
+  delay(50);
+  start_data_stream();
+  delay(50);
+  start_data_stream();
+  delay(50);
+  start_data_stream();
+
 
   
 
@@ -149,7 +155,6 @@ void loop()
 
   }
 
-  write(const CanMsg& msg)
 
   if (currentTime - lastPrintTime >= PRINT_INTERVAL) 
   {
