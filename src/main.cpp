@@ -1,5 +1,6 @@
 #include <Arduino.h>
 //#include <SoftwareSerial.h>
+#include <mcp_can.h>
 
 // put function declarations here:
 int myFunction(int, int);
@@ -12,7 +13,12 @@ uint16_t obtain_serial_number();
 uint16_t processSerial(HardwareSerial& serialPort, const char* label); 
 
 const int NUM_PORTS = 8;
-const int PACKET_SIZE = 6;
+const int PACKET_SIZE = 16;
+const unsigned long PRINT_INTERVAL = 50; // milliseconds
+unsigned long lastPrintTime = 0;
+MCP_CAN CAN0(10);     // Set CS to pin 10
+
+uint16_t distance_array[8] = {0};
 
 // Create array of Serial pointers
 HardwareSerial* serialPorts[NUM_PORTS] = {
@@ -24,10 +30,6 @@ HardwareSerial* serialPorts[NUM_PORTS] = {
 uint8_t buffers[NUM_PORTS][PACKET_SIZE];
 uint8_t bufferIndices[NUM_PORTS] = {0};
 
-
-// Throttle timing for Serial7 (index 6)
-unsigned long lastReadSerial7 = 0;
-const unsigned long SERIAL7_INTERVAL = 50;  // in ms
 
 
 #define DE 93
@@ -66,6 +68,11 @@ void setup() {
   Serial7.begin(9600, SERIAL_8E1);
   Serial6.begin(9600, SERIAL_8E1); // RS485 Communication to Offset Sensor
   Serial8.begin(9600, SERIAL_8E1); // RS485 Communication to Offset Sensor
+
+  if(CAN0.begin(MCP_ANY, CAN_500KBPS, MCP_16MHZ) == CAN_OK) Serial.println("MCP2515 Initialized Successfully!");
+  else Serial.println("Error Initializing MCP2515...");
+
+  CAN0.setMode(MCP_NORMAL);   // Change to normal mode to allow messages to be transmitted
 
   // for (int i = 0; i < NUM_PORTS; i++) {
   //   if (i == 6)
@@ -112,8 +119,8 @@ void setup() {
 
 void loop() 
 {
-  delay(50);
-  uint16_t distance_array[8] = {0};
+  unsigned long currentTime = millis();
+  
 
   for (int i = 0; i < NUM_PORTS; i++)
   {
@@ -127,7 +134,7 @@ void loop()
       {
         
         uint16_t dist_array[2] = {0};
-        distance_array[i] = processBuffer(buffers[i], dist_array, 6);
+        distance_array[i] = processBuffer(buffers[i], dist_array, 16);
         // Process the full packet
         // Serial.print("Port ");
         // Serial.print(i + 1);
@@ -143,14 +150,24 @@ void loop()
         bufferIndices[i] = 0;
       }
     }
+
   }
 
-  Serial.println("All distances: ");
-  for (int j = 0; j<8; j++)
+  write(const CanMsg& msg)
+
+  if (currentTime - lastPrintTime >= PRINT_INTERVAL) 
   {
-    Serial.println(distance_array[j]);
+    lastPrintTime = currentTime;
+
+    Serial.println("All distances: ");
+    for (int j = 0; j<8; j++)
+    {
+      Serial.println(distance_array[j]);
+    }
+    Serial.println();
   }
-  Serial.println();
+  
+
 }
 
 // put function definitions here:
