@@ -1,78 +1,156 @@
 #include <Arduino.h>
-#include <SoftwareSerial.h>
+//#include <SoftwareSerial.h>
 
 // put function declarations here:
 int myFunction(int, int);
 void printByteArrayBinary(uint8_t *arr, size_t length);
 uint16_t calculate_distance(void);
 void inquire_result(void);
-void processBuffer(byte* buffer, uint16_t* dist_array, int size);
-#define DE 30
-#define RE 31
+void start_data_stream(void);
+uint16_t processBuffer(byte* buffer, uint16_t* dist_array, int size);
+uint16_t obtain_serial_number();
+uint16_t processSerial(HardwareSerial& serialPort, const char* label); 
+
+const int NUM_PORTS = 8;
+const int PACKET_SIZE = 6;
+
+// Create array of Serial pointers
+HardwareSerial* serialPorts[NUM_PORTS] = {
+  &Serial1, &Serial2, &Serial3, &Serial4,
+  &Serial5, &Serial6, &Serial7, &Serial8
+};
+
+// Create buffers for each port
+uint8_t buffers[NUM_PORTS][PACKET_SIZE];
+uint8_t bufferIndices[NUM_PORTS] = {0};
+
+
+// Throttle timing for Serial7 (index 6)
+unsigned long lastReadSerial7 = 0;
+const unsigned long SERIAL7_INTERVAL = 50;  // in ms
+
+
+#define DE 93
+#define RE 90
+
+#define DE_1 2
+#define RE_1 3
+
+#define DE_6 26
+#define RE_6 27
+
+#define DE_7 30
+#define RE_7 31
+
+#define DE_8 32
+#define RE_8 33
 #define BUFFER_SIZE 32  // Maximum number of bytes to read at a time
 
+  // byte dataToSend[6] = {0x01, 0x83, 0x84, 0x80, 0x80, 0x83};    //change baud rate to 2400 * 48 = 115200 bit/s
+  // byte dataToSend3[3] = {0x01, 0x84, 0xAA};  // Save Parameters to Flash
+  // Serial7.write(dataToSend3, sizeof(dataToSend3));  // Send data over RS-422
+  // Serial7.flush();
 
+  // if (Serial7.available() >=0 ) 
+  // {
+  //   Serial.println("Parameters Saved");  
+  //   uint8_t response = Serial7.read();
+  //   Serial.print(response);
+  // }
 
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(115200);   // USB serial
-  Serial7.begin(115200, SERIAL_8E1); // RS485 Communication to Offset Sensor
 
-  pinMode(DE, OUTPUT);
-  pinMode(RE, OUTPUT);
+  Serial1.begin(9600, SERIAL_8E1); // RS485 Communication to Offset Sensor
+  Serial7.begin(9600, SERIAL_8E1);
+  Serial6.begin(9600, SERIAL_8E1); // RS485 Communication to Offset Sensor
+  Serial8.begin(9600, SERIAL_8E1); // RS485 Communication to Offset Sensor
 
-  digitalWrite(DE, HIGH);  // Enable driver mode
-  digitalWrite(RE, HIGH);  // Disable receiver mode (inverted)
+  // for (int i = 0; i < NUM_PORTS; i++) {
+  //   if (i == 6)
+  //   {
+  //     serialPorts[i]->begin(115200);  // Or whatever baud rate you're using
+  //   }
+    
+  //   else
+  //   {
+  //     serialPorts[i]->begin(9600);  // Or whatever baud rate you're using
+  //   }
+    
+  // }
+
+
+  pinMode(DE_1, OUTPUT);
+  pinMode(RE_1, OUTPUT);
+ 
+  pinMode(DE_6, OUTPUT);
+  pinMode(RE_6, OUTPUT);
+
+  pinMode(DE_7, OUTPUT);
+  pinMode(RE_7, OUTPUT);
+ 
+  pinMode(DE_8, OUTPUT);
+  pinMode(RE_8, OUTPUT);
+
+
+  // digitalWrite(DE_7, HIGH);  // Enable driver mode
+  // digitalWrite(RE_7, HIGH);  // Disable receiver mode (inverted)
+
+
+  //obtain_serial_number();
+
+  start_data_stream();
 
   
-  //byte dataToSend[2] = {0x01, 0x87};  // stream of results (In pairs of 4 Bytes)
-  //byte dataToSend[2] = {0x01, 0x86};  // inquiry of results (4 Bytes)
 
-  // byte dataToSend[6] = {0x01, 0x83, 0x84, 0x80, 0x80, 0x83};    //change baud rate to 2400 * 48 = 115200 bit/s
-  // Serial7.write(dataToSend, sizeof(dataToSend));  // Send data over RS-422
-  // Serial7.flush();
-  // Serial7.begin(115200, SERIAL_8E1); // RS485 Communication to Offset Sensor
-  // delay(50);
+  // digitalWrite(DE_7, LOW);  // Disable driver mode
+  // digitalWrite(RE_7, LOW);  // Enable receiver mode (inverted)
 
-  byte dataToSend3[3] = {0x01, 0x84, 0xAA};  // Save Parameters to Flash
-  Serial7.write(dataToSend3, sizeof(dataToSend3));  // Send data over RS-422
-  Serial7.flush();
-  if (Serial7.available() >0 ) 
-  {
-    Serial.println("Parameters Saved");
-    uint8_t response = Serial7.read();
-    Serial.print(response);
-  }
-  
-  // byte dataToSend2[2] = {0x01, 0x87};  // stream of results (In pairs of 4 Bytes)
-  // Serial7.write(dataToSend2, sizeof(dataToSend2));  // Send data over RS-422
-  // Serial7.flush();
-
-  digitalWrite(DE, LOW);  // Disable driver mode
-  digitalWrite(RE, LOW);  // Enable receiver mode (inverted)
+ 
 }
 
 void loop() 
 {
+  delay(50);
+  uint16_t distance_array[8] = {0};
 
-  // uint8_t received[32] = {0};
-  // uint16_t distance_mm_array[7] = {0};
+  for (int i = 0; i < NUM_PORTS; i++)
+  {
 
+    while (serialPorts[i]->available()) 
+    {
+      uint8_t byteRead = serialPorts[i]->read();
+      buffers[i][bufferIndices[i]++] = byteRead;
 
-  // if (Serial7.available() >= 32) 
-  // {  
-  //   Serial.println("Received msg");
-  //   Serial7.readBytes(received, 32);
-  //   processBuffer(received, distance_mm_array, 32);
+      if (bufferIndices[i] >= PACKET_SIZE) 
+      {
+        
+        uint16_t dist_array[2] = {0};
+        distance_array[i] = processBuffer(buffers[i], dist_array, 6);
+        // Process the full packet
+        // Serial.print("Port ");
+        // Serial.print(i + 1);
+        // Serial.print(": ");
 
-  //   for (int k = 0; k<7; k++)
-  //   {
-  //     Serial.print(",");
-  //     Serial.println(distance_mm_array[k]);
-  //   }
-  // } 
+        // for (int j = 0; j < PACKET_SIZE; j++) {
+        //   Serial.print(buffers[i][j], HEX);
+        //   Serial.print(" ");
+        // }
+        //Serial.println();
 
+        // Reset buffer index
+        bufferIndices[i] = 0;
+      }
+    }
+  }
 
+  Serial.println("All distances: ");
+  for (int j = 0; j<8; j++)
+  {
+    Serial.println(distance_array[j]);
+  }
+  Serial.println();
 }
 
 // put function definitions here:
@@ -134,13 +212,11 @@ uint16_t calculate_distance(void)
   return distance_mm;
 }
 
-void processBuffer(byte* buffer, uint16_t* dist_array, int size) {
+uint16_t processBuffer(byte* buffer, uint16_t* dist_array, int size) {
   
   uint16_t distance_mm = 0;
-
-  byte valid_buffer[32] = {0};
-  uint16_t distance_mm_array[7] = {0};
   uint16_t validgroupcount = 0;
+  //uint8_t valid_buffer[32] = {0};
 
   for (int i = 0; i <= size - 4; i++) 
   {
@@ -165,9 +241,10 @@ void processBuffer(byte* buffer, uint16_t* dist_array, int size) {
       // Serial.print("Valid group at index ");
       // Serial.println(i);
 
-      for (int j = 0; j < 4; j++) {
+      for (int j = 0; j < 4; j++) 
+      {
         //Serial.println(buffer[i + j], BIN);
-        valid_buffer[i + j] = buffer[i + j];
+        //valid_buffer[i + j] = buffer[i + j];
         result |= (buffer[i+j] & 0x0F) << 4*j;
       }
 
@@ -181,5 +258,121 @@ void processBuffer(byte* buffer, uint16_t* dist_array, int size) {
       validgroupcount++;
     }
   }
+  return distance_mm;
   //printByteArrayBinary(valid_buffer, 32);
+}
+
+void start_data_stream(void) 
+{
+
+  byte dataToSend[2] = {0x01, 0x87};  // Device Identification
+
+  digitalWrite(DE_1, HIGH);  // Enable driver mode
+  digitalWrite(RE_1, HIGH);  // Disable receiver mode (inverted)
+
+  digitalWrite(DE_6, HIGH);  // Enable driver mode
+  digitalWrite(RE_6, HIGH);  // Disable receiver mode (inverted)
+
+  digitalWrite(DE_7, HIGH);  // Enable driver mode
+  digitalWrite(RE_7, HIGH);  // Disable receiver mode (inverted)
+
+  digitalWrite(DE_8, HIGH);  // Enable driver mode
+  digitalWrite(RE_8, HIGH);  // Disable receiver mode (inverted)
+
+
+  Serial1.write(dataToSend, sizeof(dataToSend));  // Send data over RS-422
+  Serial1.flush();
+  
+  digitalWrite(DE_1, LOW);  
+  digitalWrite(RE_1, LOW);  
+
+
+
+  Serial6.write(dataToSend, sizeof(dataToSend));  // Send data over RS-422
+  Serial6.flush();
+
+  digitalWrite(DE_6, LOW);  
+  digitalWrite(RE_6, LOW);  
+
+
+  Serial7.write(dataToSend, sizeof(dataToSend));  // Send data over RS-422
+  Serial7.flush();
+
+  digitalWrite(DE_7, LOW); 
+  digitalWrite(RE_7, LOW);  
+
+
+  Serial8.write(dataToSend, sizeof(dataToSend));  // Send data over RS-422
+  Serial8.flush();
+
+  digitalWrite(DE_8, LOW); 
+  digitalWrite(RE_8, LOW);  
+}
+
+uint16_t obtain_serial_number()
+{
+  digitalWrite(DE_8, HIGH);  // Enable driver mode
+  digitalWrite(RE_8, HIGH);  // Disable receiver mode (inverted)
+
+  uint16_t serial_number = 0;
+  uint8_t received[16] = {0};
+  byte dataToSend[2] = {0x01, 0x81};
+
+  Serial.println("Sending request...");
+  Serial8.write(dataToSend, sizeof(dataToSend));
+  Serial8.flush();
+
+  digitalWrite(DE_8, LOW);  // Disable driver mode
+  digitalWrite(RE_8, LOW);  // Enable receiver mode (inverted)
+
+
+
+  unsigned long start = millis();
+  while (Serial8.available() < 16 && (millis() - start < 5000)) 
+  {
+    // wait with timeout
+  }
+
+  if (Serial8.available() >= 16) 
+  {
+    Serial.println("Message Received");
+    Serial8.readBytes(received, 16);
+    printByteArrayBinary(received, 16);
+
+    for (int i = 8; i > 3; i--) {
+      serial_number = (serial_number << 4) | (received[i] & 0x0F);
+    }
+
+    Serial.print("The Serial Number is: ");
+    Serial.println(serial_number);
+  } 
+  
+  else 
+  {
+    Serial.println("Timeout: No response received.");
+  }
+
+  return serial_number;
+}
+
+uint16_t processSerial(HardwareSerial& serialPort, const char* label) 
+{
+  uint8_t received[32] = {0};
+  uint16_t dist_array[7] = {0};
+
+  if (serialPort.available() >= 32) 
+  {
+    // Serial.print(label);
+    // Serial.println(" Result:");
+
+    serialPort.readBytes(received, 32);
+    processBuffer(received, dist_array, 32);
+
+    // for (int i = 0; i < 7; i++) 
+    // {
+    //   Serial.print(dist_array[i]);
+    //   Serial.println(",");
+    // }
+  }
+  return dist_array[6];
 }
