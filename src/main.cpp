@@ -1,5 +1,6 @@
 #include <Arduino.h>
 //#include <SoftwareSerial.h>
+#include <FlexCAN_T4.h> 
 
 // put function declarations here:
 int myFunction(int, int);
@@ -14,8 +15,10 @@ uint16_t processSerial(HardwareSerial& serialPort, const char* label);
 const int NUM_PORTS = 8;
 const int PACKET_SIZE = 16;
 const unsigned long PRINT_INTERVAL = 50; // milliseconds
-unsigned long lastPrintTime = 0;
 
+unsigned long lastPrintTime = 0;
+unsigned long lastCANsendTime = 0;
+unsigned long CANsendInterval = 50;
 
 uint16_t distance_array[8] = {0};
 
@@ -29,6 +32,11 @@ HardwareSerial* serialPorts[NUM_PORTS] = {
 uint8_t buffers[NUM_PORTS][PACKET_SIZE];
 uint8_t bufferIndices[NUM_PORTS] = {0};
 
+const uint32_t CANID1 = 0x123;
+const uint32_t CANID2 = 0x321;
+FlexCAN_T4<CAN1, RX_SIZE_256, TX_SIZE_16> can;
+CAN_message_t msg;
+
 
 
 #define DE 93
@@ -36,6 +44,9 @@ uint8_t bufferIndices[NUM_PORTS] = {0};
 
 #define DE_1 2
 #define RE_1 3
+
+#define DE_2 9
+#define RE_2 10
 
 #define DE_6 26
 #define RE_6 27
@@ -63,10 +74,15 @@ void setup() {
   // put your setup code here, to run once:
   Serial.begin(115200);   // USB serial
 
-  Serial1.begin(9600, SERIAL_8E1); // RS485 Communication to Offset Sensor
-  Serial7.begin(9600, SERIAL_8E1);
-  Serial6.begin(9600, SERIAL_8E1); // RS485 Communication to Offset Sensor
+  Serial1.begin(115200, SERIAL_8E1); // RS485 Communication to Offset Sensor
+  Serial2.begin(115200, SERIAL_8E1); // RS485 Communication to Offset Sensor
+  Serial7.begin(115200, SERIAL_8E1);
+  Serial6.begin(115200, SERIAL_8E1); // RS485 Communication to Offset Sensor
   Serial8.begin(9600, SERIAL_8E1); // RS485 Communication to Offset Sensor
+
+  Serial.println("Setting up CAN Bus...");
+  can.begin();
+  can.setBaudRate(1000000);
 
 
   // for (int i = 0; i < NUM_PORTS; i++) {
@@ -85,6 +101,9 @@ void setup() {
 
   pinMode(DE_1, OUTPUT);
   pinMode(RE_1, OUTPUT);
+
+  pinMode(DE_2, OUTPUT);
+  pinMode(RE_2, OUTPUT);
  
   pinMode(DE_6, OUTPUT);
   pinMode(RE_6, OUTPUT);
@@ -122,7 +141,6 @@ void setup() {
 void loop() 
 {
   unsigned long currentTime = millis();
-  
 
   for (int i = 0; i < NUM_PORTS; i++)
   {
@@ -137,6 +155,7 @@ void loop()
         
         uint16_t dist_array[2] = {0};
         distance_array[i] = processBuffer(buffers[i], dist_array, 16);
+        
         // Process the full packet
         // Serial.print("Port ");
         // Serial.print(i + 1);
@@ -167,6 +186,49 @@ void loop()
     }
     Serial.println();
   }
+
+  if (millis() - lastCANsendTime > CANsendInterval) 
+  {
+    lastCANsendTime = millis();
+    uint8_t can_msg1[8];
+    uint8_t can_msg2[8];
+
+  // First 4 uint16 values into CAN message 1
+  for (int i = 0; i < 4; i++) 
+  {
+    can_msg1[i * 2]     = distance_array[i] & 0xFF;         // Low byte
+    can_msg1[i * 2 + 1] = (distance_array[i] >> 8) & 0xFF;  // High byte
+  }
+
+    // Send distance data over CAN
+    msg.id = CANID1;
+    msg.len = 8;    // Send Eight Bytes (4 Data Points)
+    for (int i = 0; i < 8; i++) 
+    {
+        msg.buf[i] = can_msg1[i];
+    }
+    can.write(msg);
+
+    // Next 4 uint16 values into CAN message 2
+    for (int i = 0; i < 4; i++) 
+    {
+      can_msg2[i * 2]     = distance_array[i + 4] & 0xFF;
+      can_msg2[i * 2 + 1] = (distance_array[i + 4] >> 8) & 0xFF;
+    }
+
+  delay(1); //(necessary for proper can transmission, try to fix)
+    
+    // Send distance data over CAN
+    msg.id = CANID2;
+    msg.len = 8;    // Send Eight Bytes (4 Data Points)
+    for (int i = 0; i < 8; i++) 
+    {
+        msg.buf[i] = can_msg2[i];
+    }
+    can.write(msg);
+
+  }
+    
   
 
 }
@@ -288,6 +350,9 @@ void start_data_stream(void)
   digitalWrite(DE_1, HIGH);  // Enable driver mode
   digitalWrite(RE_1, HIGH);  // Disable receiver mode (inverted)
 
+  digitalWrite(DE_2, HIGH);  // Enable driver mode
+  digitalWrite(RE_2, HIGH);  // Disable receiver mode (inverted)
+
   digitalWrite(DE_6, HIGH);  // Enable driver mode
   digitalWrite(RE_6, HIGH);  // Disable receiver mode (inverted)
 
@@ -303,6 +368,12 @@ void start_data_stream(void)
   
   digitalWrite(DE_1, LOW);  
   digitalWrite(RE_1, LOW);  
+
+  Serial2.write(dataToSend, sizeof(dataToSend));  // Send data over RS-422
+  Serial2.flush();
+  
+  digitalWrite(DE_2, LOW);  
+  digitalWrite(RE_2, LOW);  
 
 
 
