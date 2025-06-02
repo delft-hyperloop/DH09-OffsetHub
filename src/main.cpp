@@ -77,15 +77,15 @@ void setup() {
   // put your setup code here, to run once:
   Serial.begin(115200);   // USB serial
 
-  Serial1.begin(115200, SERIAL_8E1); // RS485 Communication to Offset Sensor
-  Serial2.begin(115200, SERIAL_8E1); // RS485 Communication to Offset Sensor
-  Serial3.begin(115200, SERIAL_8E1); // RS485 Communication to Offset Sensor
-  Serial4.begin(115200, SERIAL_8E1); // RS485 Communication to Offset Sensor
-  Serial5.begin(115200, SERIAL_8E1); // RS485 Communication to Offset Sensor
+  Serial1.begin(115200, SERIAL_8E1); // 
+  Serial2.begin(115200, SERIAL_8E1); // 
+  Serial3.begin(115200, SERIAL_8E1); // 
+  Serial4.begin(115200, SERIAL_8E1); // 
+  Serial5.begin(115200, SERIAL_8E1); // 
 
   Serial7.begin(115200, SERIAL_8E1);
-  Serial6.begin(115200, SERIAL_8E1); // RS485 Communication to Offset Sensor
-  Serial8.begin(115200, SERIAL_8E1); // RS485 Communication to Offset Sensor
+  Serial6.begin(115200, SERIAL_8E1); // 
+  Serial8.begin(921600, SERIAL_8E1); // Increased Baud rate for sensor delay test, 30 us Exposure Time, 1 us Transmission Time
 
   Serial.println("Setting up CAN Bus...");
   can.begin();
