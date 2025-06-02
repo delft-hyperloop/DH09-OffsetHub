@@ -7,8 +7,11 @@ uint16_t calculate_distance(void);
 void inquire_result(void);
 void start_data_stream(void);
 uint16_t processBuffer(byte* buffer, uint16_t* dist_array, int size);
-uint16_t obtain_serial_number();
+uint16_t obtain_serial_number(HardwareSerial* SerialPtr);
 uint16_t processSerial(HardwareSerial& serialPort, const char* label); 
+void setupREDEPorts();
+void EnableDriver();
+void EnableReceiver();
 
 const int NUM_PORTS = 8;
 const int PACKET_SIZE = 16;
@@ -24,6 +27,17 @@ uint16_t distance_array[8] = {0};
 HardwareSerial* serialPorts[NUM_PORTS] = {
   &Serial1, &Serial2, &Serial3, &Serial4,
   &Serial5, &Serial6, &Serial7, &Serial8
+};
+
+uint8_t RE_DE_PINS[8][2] = {
+  {3, 2},    // RE_1, DE_1
+  {10, 9},   // RE_2, DE_2
+  {39, 38},  // RE_3, DE_3
+  {41, 40},  // RE_4, DE_4
+  {19, 18},  // RE_5, DE_5
+  {27, 26},  // RE_6, DE_6
+  {31, 30},  // RE_7, DE_7
+  {33, 32}   // RE_8, DE_8
 };
 
 // Create buffers for each port
@@ -106,34 +120,38 @@ void setup() {
     
   // }
 
+  setupREDEPorts();   //  Set RE/DE pins as Output
 
-  pinMode(DE_1, OUTPUT);
-  pinMode(RE_1, OUTPUT);
+  // pinMode(DE_1, OUTPUT);
+  // pinMode(RE_1, OUTPUT);
 
-  pinMode(DE_2, OUTPUT);
-  pinMode(RE_2, OUTPUT);
+  // pinMode(DE_2, OUTPUT);
+  // pinMode(RE_2, OUTPUT);
 
-  pinMode(DE_3, OUTPUT);
-  pinMode(RE_3, OUTPUT);
+  // pinMode(DE_3, OUTPUT);
+  // pinMode(RE_3, OUTPUT);
 
-  pinMode(DE_4, OUTPUT);
-  pinMode(RE_4, OUTPUT);
+  // pinMode(DE_4, OUTPUT);
+  // pinMode(RE_4, OUTPUT);
 
-  pinMode(DE_5, OUTPUT);
-  pinMode(RE_5, OUTPUT);
+  // pinMode(DE_5, OUTPUT);
+  // pinMode(RE_5, OUTPUT);
  
-  pinMode(DE_6, OUTPUT);
-  pinMode(RE_6, OUTPUT);
+  // pinMode(DE_6, OUTPUT);
+  // pinMode(RE_6, OUTPUT);
 
-  pinMode(DE_7, OUTPUT);
-  pinMode(RE_7, OUTPUT);
+  // pinMode(DE_7, OUTPUT);
+  // pinMode(RE_7, OUTPUT);
  
-  pinMode(DE_8, OUTPUT);
-  pinMode(RE_8, OUTPUT);
+  // pinMode(DE_8, OUTPUT);
+  // pinMode(RE_8, OUTPUT);
 
-  //obtain_serial_number();
+  for (int i = 0; i < NUM_PORTS; i++) 
+  {
+    obtain_serial_number(serialPorts[i]);  // Or whatever baud rate you're using
+    //obtain_serial_number();
+  }
 }
-
 void loop() 
 {
   long beginningLoop = micros();
@@ -364,30 +382,31 @@ void start_data_stream(void)
 
   byte dataToSend[2] = {0x01, 0x87};  // Device Identification
 
-  digitalWrite(DE_1, HIGH);  // Enable driver mode
-  digitalWrite(RE_1, HIGH);  // Disable receiver mode (inverted)
+  // digitalWrite(DE_1, HIGH);  // Enable driver mode
+  // digitalWrite(RE_1, HIGH);  // Disable receiver mode (inverted)
 
-  digitalWrite(DE_2, HIGH);  // Enable driver mode
-  digitalWrite(RE_2, HIGH);  // Disable receiver mode (inverted)
+  // digitalWrite(DE_2, HIGH);  // Enable driver mode
+  // digitalWrite(RE_2, HIGH);  // Disable receiver mode (inverted)
 
-  digitalWrite(DE_3, HIGH);  // Enable driver mode
-  digitalWrite(RE_3, HIGH);  // Disable receiver mode (inverted)
+  // digitalWrite(DE_3, HIGH);  // Enable driver mode
+  // digitalWrite(RE_3, HIGH);  // Disable receiver mode (inverted)
 
-  digitalWrite(DE_4, HIGH);  // Enable driver mode
-  digitalWrite(RE_4, HIGH);  // Disable receiver mode (inverted)
+  // digitalWrite(DE_4, HIGH);  // Enable driver mode
+  // digitalWrite(RE_4, HIGH);  // Disable receiver mode (inverted)
 
-  digitalWrite(DE_5, HIGH);  // Enable driver mode
-  digitalWrite(RE_5, HIGH);  // Disable receiver mode (inverted)
+  // digitalWrite(DE_5, HIGH);  // Enable driver mode
+  // digitalWrite(RE_5, HIGH);  // Disable receiver mode (inverted)
 
-  digitalWrite(DE_6, HIGH);  // Enable driver mode
-  digitalWrite(RE_6, HIGH);  // Disable receiver mode (inverted)
+  // digitalWrite(DE_6, HIGH);  // Enable driver mode
+  // digitalWrite(RE_6, HIGH);  // Disable receiver mode (inverted)
 
-  digitalWrite(DE_7, HIGH);  // Enable driver mode
-  digitalWrite(RE_7, HIGH);  // Disable receiver mode (inverted)
+  // digitalWrite(DE_7, HIGH);  // Enable driver mode
+  // digitalWrite(RE_7, HIGH);  // Disable receiver mode (inverted)
 
-  digitalWrite(DE_8, HIGH);  // Enable driver mode
-  digitalWrite(RE_8, HIGH);  // Disable receiver mode (inverted)
+  // digitalWrite(DE_8, HIGH);  // Enable driver mode
+  // digitalWrite(RE_8, HIGH);  // Disable receiver mode (inverted)
 
+  EnableDriver();
 
   Serial1.write(dataToSend, sizeof(dataToSend));  // Send data over RS-422
   Serial1.flush();
@@ -441,7 +460,7 @@ void start_data_stream(void)
   digitalWrite(RE_8, LOW);  
 }
 
-uint16_t obtain_serial_number()
+uint16_t obtain_serial_number(HardwareSerial* SerialPtr)
 {
   digitalWrite(DE_8, HIGH);  // Enable driver mode
   digitalWrite(RE_8, HIGH);  // Disable receiver mode (inverted)
@@ -507,4 +526,31 @@ uint16_t processSerial(HardwareSerial& serialPort, const char* label)
     // }
   }
   return dist_array[6];
+}
+
+void setupREDEPorts() 
+{
+  for (int i = 0; i < NUM_PORTS; i++) 
+  {
+      pinMode(RE_DE_PINS[i][0], OUTPUT); // Set RE pin as output
+      pinMode(RE_DE_PINS[i][1], OUTPUT); // Set DE pin as output
+  }
+}
+
+void EnableDriver() 
+{
+  for (int i = 0; i < NUM_PORTS; i++) 
+  {
+      digitalWrite(RE_DE_PINS[i][0], HIGH);   //  Disable Receiver
+      digitalWrite(RE_DE_PINS[i][1], HIGH);   //  Enable Driver
+  }
+}
+
+void EnableReceiver() 
+{
+  for (int i = 0; i < NUM_PORTS; i++) 
+  {
+      digitalWrite(RE_DE_PINS[i][0], LOW);   //  Enable Receiver
+      digitalWrite(RE_DE_PINS[i][1], LOW);   //  Disable Driver
+  }
 }
