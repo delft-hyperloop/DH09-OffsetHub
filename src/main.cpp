@@ -12,7 +12,7 @@ uint16_t processSerial(HardwareSerial& serialPort, const char* label);
 
 const int NUM_PORTS = 8;
 const int PACKET_SIZE = 16;
-const unsigned long PRINT_INTERVAL = 50; // milliseconds
+const unsigned long PRINT_INTERVAL = 1000; // milliseconds
 
 unsigned long lastPrintTime = 0;
 unsigned long lastCANsendTime = 0;
@@ -34,6 +34,7 @@ const uint32_t CANID1 = 0x123;
 const uint32_t CANID2 = 0x321;
 FlexCAN_T4<CAN1, RX_SIZE_256, TX_SIZE_16> can;
 CAN_message_t msg;
+long canMsgCounter = 0;
 
 #define DE_1 2
 #define RE_1 3
@@ -135,6 +136,8 @@ void setup() {
 
 void loop() 
 {
+  long beginningLoop = micros();
+
   unsigned long currentTime = millis();
 
   for (int i = 0; i < NUM_PORTS; i++)
@@ -174,14 +177,29 @@ void loop()
   {
     lastPrintTime = currentTime;
 
-    Serial.println("All distances: ");
-    for (int j = 0; j<8; j++)
+    // Serial.println("All distances: ");
+    // for (int j = 0; j<8; j++)
+    // {
+    //   Serial.println(distance_array[j]);
+    // }
+
+    Serial.println("CAN messages: " + String(canMsgCounter) + " in " + String(PRINT_INTERVAL) + " ms");
+    canMsgCounter = 0;
+  }
+
+  if (can.read(msg)) 
+  {
+    Serial.print("Received CAN message with ID: ");
+    Serial.println(msg.id, HEX);
+    Serial.print("Data: ");
+    // printByteArrayBinary(msg.buf, msg.len);
+    for (int i = 0; i < msg.len; i++) 
     {
-      Serial.println(distance_array[j]);
+      Serial.print(msg.buf[i], HEX);
+      Serial.print(" ");
     }
     Serial.println();
   }
-
   if (micros() - lastCANsendTime > CANsendInterval) 
   {
     lastCANsendTime = micros();
@@ -204,6 +222,7 @@ void loop()
     }
     can.write(msg);
 
+
     // Next 4 uint16 values into CAN message 2
     for (int i = 0; i < 4; i++) 
     {
@@ -219,11 +238,16 @@ void loop()
         msg.buf[i] = can_msg2[i];
     }
     can.write(msg);
-
+    
+    canMsgCounter++;
   }
     
   
-
+  long endLoop = micros();
+  long loopDuration = endLoop - beginningLoop;
+  if (millis() - lastPrintTime >= PRINT_INTERVAL) {
+    Serial.println("Loop Duration: " + String(loopDuration) + " microseconds\n");
+  }
 }
 
 // put function definitions here:
@@ -324,7 +348,7 @@ uint16_t processBuffer(byte* buffer, uint16_t* dist_array, int size) {
       distance_mm = (2500 + (result * 2500) / 0x4000);
       dist_array[validgroupcount] = distance_mm;
 
-      // Serial.print("distance mm :");
+      // Serial.print("za mm :");
       // Serial.println(distance_mm);
 
       i += 3; // skip ahead by 4 total
