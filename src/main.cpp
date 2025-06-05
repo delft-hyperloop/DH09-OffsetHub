@@ -6,8 +6,10 @@ void printByteArrayBinary(uint8_t *arr, size_t length);
 uint16_t calculate_distance(void);
 void inquire_result(void);
 void start_data_stream(void);
+void stop_data_stream(void);
 uint16_t processBuffer(byte* buffer, uint16_t* dist_array, int size);
-uint16_t obtain_serial_number(HardwareSerial* SerialPtr);
+uint16_t obtain_serial_numbers(HardwareSerial* SerialPtr,  int port);
+uint16_t obtain_serial_number(void);
 uint16_t processSerial(HardwareSerial& serialPort, const char* label); 
 void setupREDEPorts();
 void EnableDriver();
@@ -15,13 +17,14 @@ void EnableReceiver();
 
 const int NUM_PORTS = 8;
 const int PACKET_SIZE = 16;
-const unsigned long PRINT_INTERVAL = 1000; // milliseconds
+const unsigned long PRINT_INTERVAL = 100; // milliseconds
 
 unsigned long lastPrintTime = 0;
 unsigned long lastCANsendTime = 0;
 unsigned long CANsendInterval = 500;    //microseconds
 
 uint16_t distance_array[8] = {0};
+uint16_t Serial_array[8] = {0};
 
 // Create array of Serial pointers
 HardwareSerial* serialPorts[NUM_PORTS] = {
@@ -29,7 +32,7 @@ HardwareSerial* serialPorts[NUM_PORTS] = {
   &Serial5, &Serial6, &Serial7, &Serial8
 };
 
-uint8_t RE_DE_PINS[8][2] = {
+int RE_DE_PINS[8][2] = {
   {3, 2},    // RE_1, DE_1
   {10, 9},   // RE_2, DE_2
   {39, 38},  // RE_3, DE_3
@@ -88,184 +91,148 @@ long canMsgCounter = 0;
   //   Serial.print(response);
   // }
 
-void setup() {
+void setup() 
+{
   // put your setup code here, to run once:
-  Serial.begin(115200);   // USB serial
+  Serial.begin(921600);   // USB serial
 
-  Serial1.begin(115200, SERIAL_8E1); // 
-  Serial2.begin(115200, SERIAL_8E1); // 
-  Serial3.begin(115200, SERIAL_8E1); // 
-  Serial4.begin(115200, SERIAL_8E1); // 
-  Serial5.begin(115200, SERIAL_8E1); // 
-
-  Serial7.begin(115200, SERIAL_8E1);
-  Serial6.begin(115200, SERIAL_8E1); // 
-  Serial8.begin(921600, SERIAL_8E1); // Increased Baud rate for sensor delay test, 30 us Exposure Time, 1 us Transmission Time
-
-  Serial.println("Setting up CAN Bus...");
+  //Serial.println("Setting up CAN Bus...");
   can.begin();
   can.setBaudRate(1000000);
 
-
-  // for (int i = 0; i < NUM_PORTS; i++) {
-  //   if (i == 6)
-  //   {
-  //     serialPorts[i]->begin(115200);  // Or whatever baud rate you're using
-  //   }
-    
-  //   else
-  //   {
-  //     serialPorts[i]->begin(9600);  // Or whatever baud rate you're using
-  //   }
-    
-  // }
-
-  setupREDEPorts();   //  Set RE/DE pins as Output
-
-  // pinMode(DE_1, OUTPUT);
-  // pinMode(RE_1, OUTPUT);
-
-  // pinMode(DE_2, OUTPUT);
-  // pinMode(RE_2, OUTPUT);
-
-  // pinMode(DE_3, OUTPUT);
-  // pinMode(RE_3, OUTPUT);
-
-  // pinMode(DE_4, OUTPUT);
-  // pinMode(RE_4, OUTPUT);
-
-  // pinMode(DE_5, OUTPUT);
-  // pinMode(RE_5, OUTPUT);
- 
-  // pinMode(DE_6, OUTPUT);
-  // pinMode(RE_6, OUTPUT);
-
-  // pinMode(DE_7, OUTPUT);
-  // pinMode(RE_7, OUTPUT);
- 
-  // pinMode(DE_8, OUTPUT);
-  // pinMode(RE_8, OUTPUT);
-
   for (int i = 0; i < NUM_PORTS; i++) 
   {
-    obtain_serial_number(serialPorts[i]);  // Or whatever baud rate you're using
-    //obtain_serial_number();
+    if (i == 6)
+    {
+      serialPorts[i]->begin(921600, SERIAL_8E1);  // Or whatever baud rate you're using
+    }
+    else
+    {
+      serialPorts[i]->begin(921600, SERIAL_8E1);  // Or whatever baud rate you're using
+    }
+}
+
+  setupREDEPorts();   //  Set RE/DE pins as Output
+  delay(50);
+  stop_data_stream();
+  delay(50);
+
+  //EnableReceiver();
+  //EnableDriver();
+  for (int i = 0; i < 8; i++) 
+  {
+    Serial.print("Serial port ");
+    Serial.print(i);
+    Serial.print(":");
+    Serial_array[i] = obtain_serial_numbers(serialPorts[i], i);
+     
+    
   }
+  
+  //obtain_serial_number();
 }
 void loop() 
 {
-  long beginningLoop = micros();
 
-  unsigned long currentTime = millis();
+  // long beginningLoop = micros();
 
-  for (int i = 0; i < NUM_PORTS; i++)
-  {
+  // unsigned long currentTime = millis();
 
-    while (serialPorts[i]->available()) 
-    {
-      uint8_t byteRead = serialPorts[i]->read();
-      buffers[i][bufferIndices[i]++] = byteRead;
+  // for (int i = 0; i < NUM_PORTS; i++)
+  // {
 
-      if (bufferIndices[i] >= PACKET_SIZE) 
-      {
+  //   while (serialPorts[i]->available()) 
+  //   {
+  //     uint8_t byteRead = serialPorts[i]->read();
+  //     buffers[i][bufferIndices[i]++] = byteRead;
+
+  //     if (bufferIndices[i] >= PACKET_SIZE) 
+  //     {
         
-        uint16_t dist_array[2] = {0};
-        distance_array[i] = processBuffer(buffers[i], dist_array, 16);
-        
-        // Process the full packet
-        // Serial.print("Port ");
-        // Serial.print(i + 1);
-        // Serial.print(": ");
+  //       uint16_t dist_array[2] = {0};
+  //       distance_array[i] = processBuffer(buffers[i], dist_array, 16);
+      
+  //       // Reset buffer index
+  //       bufferIndices[i] = 0;
+  //     }
+  //   }
+  // }
 
-        // for (int j = 0; j < PACKET_SIZE; j++) {
-        //   Serial.print(buffers[i][j], HEX);
-        //   Serial.print(" ");
-        // }
-        //Serial.println();
+  // if (currentTime - lastPrintTime >= PRINT_INTERVAL) 
+  // {
+  //   lastPrintTime = currentTime;
 
-        // Reset buffer index
-        bufferIndices[i] = 0;
-      }
-    }
+  //   // Serial.println("All distances: ");
+  //   // for (int j = 0; j<8; j++)
+  //   // {
+  //   //   Serial.println(distance_array[j]);
+  //   // }
 
-  }
+  //   //Serial.println("CAN messages: " + String(canMsgCounter) + " in " + String(PRINT_INTERVAL) + " ms");
+  //   canMsgCounter = 0;
+  // }
 
+  // // if (can.read(msg)) 
+  // // {
+  // //   Serial.print("Received CAN message with ID: ");
+  // //   Serial.println(msg.id, HEX);
+  // //   Serial.print("Data: ");
+  // //   // printByteArrayBinary(msg.buf, msg.len);
+  // //   for (int i = 0; i < msg.len; i++) 
+  // //   {
+  // //     Serial.print(msg.buf[i], HEX);
+  // //     Serial.print(" ");
+  // //   }
+  // //   Serial.println();
+  // // }
+  // if (micros() - lastCANsendTime > CANsendInterval) 
+  // {
+  //   lastCANsendTime = micros();
+  //   uint8_t can_msg1[8];
+  //   uint8_t can_msg2[8];
 
-  if (currentTime - lastPrintTime >= PRINT_INTERVAL) 
-  {
-    lastPrintTime = currentTime;
+  // // First 4 uint16 values into CAN message 1
+  // for (int i = 0; i < 4; i++) 
+  // {
+  //   can_msg1[i * 2]     = distance_array[i] & 0xFF;         // Low byte
+  //   can_msg1[i * 2 + 1] = (distance_array[i] >> 8) & 0xFF;  // High byte
+  // }
 
-    // Serial.println("All distances: ");
-    // for (int j = 0; j<8; j++)
-    // {
-    //   Serial.println(distance_array[j]);
-    // }
-
-    Serial.println("CAN messages: " + String(canMsgCounter) + " in " + String(PRINT_INTERVAL) + " ms");
-    canMsgCounter = 0;
-  }
-
-  if (can.read(msg)) 
-  {
-    Serial.print("Received CAN message with ID: ");
-    Serial.println(msg.id, HEX);
-    Serial.print("Data: ");
-    // printByteArrayBinary(msg.buf, msg.len);
-    for (int i = 0; i < msg.len; i++) 
-    {
-      Serial.print(msg.buf[i], HEX);
-      Serial.print(" ");
-    }
-    Serial.println();
-  }
-  if (micros() - lastCANsendTime > CANsendInterval) 
-  {
-    lastCANsendTime = micros();
-    uint8_t can_msg1[8];
-    uint8_t can_msg2[8];
-
-  // First 4 uint16 values into CAN message 1
-  for (int i = 0; i < 4; i++) 
-  {
-    can_msg1[i * 2]     = distance_array[i] & 0xFF;         // Low byte
-    can_msg1[i * 2 + 1] = (distance_array[i] >> 8) & 0xFF;  // High byte
-  }
-
-    // Send distance data over CAN
-    msg.id = CANID1;
-    msg.len = 8;    // Send Eight Bytes (4 Data Points)
-    for (int i = 0; i < 8; i++) 
-    {
-        msg.buf[i] = can_msg1[i];
-    }
-    can.write(msg);
+  //   // Send distance data over CAN
+  //   msg.id = CANID1;
+  //   msg.len = 8;    // Send Eight Bytes (4 Data Points)
+  //   for (int i = 0; i < 8; i++) 
+  //   {
+  //       msg.buf[i] = can_msg1[i];
+  //   }
+  //   can.write(msg);
 
 
-    // Next 4 uint16 values into CAN message 2
-    for (int i = 0; i < 4; i++) 
-    {
-      can_msg2[i * 2]     = distance_array[i + 4] & 0xFF;
-      can_msg2[i * 2 + 1] = (distance_array[i + 4] >> 8) & 0xFF;
-    }
+  //   // Next 4 uint16 values into CAN message 2
+  //   for (int i = 0; i < 4; i++) 
+  //   {
+  //     can_msg2[i * 2]     = distance_array[i + 4] & 0xFF;
+  //     can_msg2[i * 2 + 1] = (distance_array[i + 4] >> 8) & 0xFF;
+  //   }
     
-    // Send distance data over CAN
-    msg.id = CANID2;
-    msg.len = 8;    // Send Eight Bytes (4 Data Points)
-    for (int i = 0; i < 8; i++) 
-    {
-        msg.buf[i] = can_msg2[i];
-    }
-    can.write(msg);
+  //   // Send distance data over CAN
+  //   msg.id = CANID2;
+  //   msg.len = 8;    // Send Eight Bytes (4 Data Points)
+  //   for (int i = 0; i < 8; i++) 
+  //   {
+  //       msg.buf[i] = can_msg2[i];
+  //   }
+  //   can.write(msg);
     
-    canMsgCounter++;
-  }
+  //   canMsgCounter++;
+  // }
     
   
-  long endLoop = micros();
-  long loopDuration = endLoop - beginningLoop;
-  if (millis() - lastPrintTime >= PRINT_INTERVAL) {
-    Serial.println("Loop Duration: " + String(loopDuration) + " microseconds\n");
-  }
+  // long endLoop = micros();
+  // long loopDuration = endLoop - beginningLoop;
+  // // if (millis() - lastPrintTime >= PRINT_INTERVAL) {
+  // //   Serial.println("Loop Duration: " + String(loopDuration) + " microseconds\n");
+  // }
 }
 
 // put function definitions here:
@@ -379,122 +346,120 @@ uint16_t processBuffer(byte* buffer, uint16_t* dist_array, int size) {
 
 void start_data_stream(void) 
 {
-
   byte dataToSend[2] = {0x01, 0x87};  // Device Identification
-
-  // digitalWrite(DE_1, HIGH);  // Enable driver mode
-  // digitalWrite(RE_1, HIGH);  // Disable receiver mode (inverted)
-
-  // digitalWrite(DE_2, HIGH);  // Enable driver mode
-  // digitalWrite(RE_2, HIGH);  // Disable receiver mode (inverted)
-
-  // digitalWrite(DE_3, HIGH);  // Enable driver mode
-  // digitalWrite(RE_3, HIGH);  // Disable receiver mode (inverted)
-
-  // digitalWrite(DE_4, HIGH);  // Enable driver mode
-  // digitalWrite(RE_4, HIGH);  // Disable receiver mode (inverted)
-
-  // digitalWrite(DE_5, HIGH);  // Enable driver mode
-  // digitalWrite(RE_5, HIGH);  // Disable receiver mode (inverted)
-
-  // digitalWrite(DE_6, HIGH);  // Enable driver mode
-  // digitalWrite(RE_6, HIGH);  // Disable receiver mode (inverted)
-
-  // digitalWrite(DE_7, HIGH);  // Enable driver mode
-  // digitalWrite(RE_7, HIGH);  // Disable receiver mode (inverted)
-
-  // digitalWrite(DE_8, HIGH);  // Enable driver mode
-  // digitalWrite(RE_8, HIGH);  // Disable receiver mode (inverted)
-
   EnableDriver();
 
-  Serial1.write(dataToSend, sizeof(dataToSend));  // Send data over RS-422
-  Serial1.flush();
-  
-  digitalWrite(DE_1, LOW);  
-  digitalWrite(RE_1, LOW);  
-
-  Serial2.write(dataToSend, sizeof(dataToSend));  // Send data over RS-422
-  Serial2.flush();
-  
-  digitalWrite(DE_2, LOW);  
-  digitalWrite(RE_2, LOW);  
-
-  Serial3.write(dataToSend, sizeof(dataToSend));  // Send data over RS-422
-  Serial3.flush();
-  
-  digitalWrite(DE_3, LOW);  
-  digitalWrite(RE_3, LOW);  
-
-  Serial4.write(dataToSend, sizeof(dataToSend));  // Send data over RS-422
-  Serial4.flush();
-  
-  digitalWrite(DE_4, LOW);  
-  digitalWrite(RE_4, LOW);  
-
-  Serial5.write(dataToSend, sizeof(dataToSend));  // Send data over RS-422
-  Serial5.flush();
-  
-  digitalWrite(DE_5, LOW);  
-  digitalWrite(RE_5, LOW);  
-
-
-  Serial6.write(dataToSend, sizeof(dataToSend));  // Send data over RS-422
-  Serial6.flush();
-
-  digitalWrite(DE_6, LOW);  
-  digitalWrite(RE_6, LOW);  
-
-
-  Serial7.write(dataToSend, sizeof(dataToSend));  // Send data over RS-422
-  Serial7.flush();
-
-  digitalWrite(DE_7, LOW); 
-  digitalWrite(RE_7, LOW);  
-
-
-  Serial8.write(dataToSend, sizeof(dataToSend));  // Send data over RS-422
-  Serial8.flush();
-
-  digitalWrite(DE_8, LOW); 
-  digitalWrite(RE_8, LOW);  
+  for (int i = 0; i < NUM_PORTS; i++)
+  {
+    serialPorts[i] -> write(dataToSend, sizeof(dataToSend));
+    digitalWrite(RE_DE_PINS[i][0], LOW);   //  Enable Receiver
+    digitalWrite(RE_DE_PINS[i][1], LOW);   //  Disable Driver
+  }
 }
 
-uint16_t obtain_serial_number(HardwareSerial* SerialPtr)
+void stop_data_stream(void) 
 {
-  digitalWrite(DE_8, HIGH);  // Enable driver mode
-  digitalWrite(RE_8, HIGH);  // Disable receiver mode (inverted)
+  byte dataToSend[2] = {0x01, 0x88};   //  Stop Data Stream Command
+
+  EnableDriver();
+  delay(50);
+
+  for (int i = 0; i < NUM_PORTS; i++)
+  {
+    serialPorts[i] -> write(dataToSend, sizeof(dataToSend));
+    serialPorts[i] -> flush();
+
+    digitalWrite(RE_DE_PINS[i][0], LOW);   //  Enable Receiver
+    digitalWrite(RE_DE_PINS[i][1], LOW);   //  Disable Driver
+  }
+
+
+  Serial.println("Data Stream Stopped.");
+
+}
+
+uint16_t obtain_serial_numbers(HardwareSerial* SerialPtr, int port)
+{
+  digitalWrite(RE_DE_PINS[port][1], HIGH);   //  Enable Driver
+  digitalWrite(RE_DE_PINS[port][0], HIGH);   //  Disable Receiver
+
+  uint16_t serial_number = 0;
+  uint8_t received[16] = {0};
+
+  byte dataToSend[2] = {0x01, 0x81};
+
+  Serial.println("Sending request...");
+
+  SerialPtr -> write(dataToSend, sizeof(dataToSend));
+  SerialPtr -> flush();
+
+  digitalWrite(RE_DE_PINS[port][1], LOW);   //  Enable Receiver
+  digitalWrite(RE_DE_PINS[port][0], LOW);   //  Disable Driver
+
+  unsigned long start = millis();
+  while (SerialPtr -> available() < 16 && (millis() - start < 100)) 
+  {
+    // wait with timeoutl
+  }
+
+  if (SerialPtr -> available() >= 16) 
+  {
+    Serial.println("Message Received");
+    SerialPtr -> readBytes(received, 16);
+    printByteArrayBinary(received, 16);
+
+    for (int i = 7; i > 3; i--) {
+      serial_number = (serial_number << 4) | (received[i] & 0x0F);
+      //Serial.println(received[i] & 0x0F, BIN);
+    }
+
+    //Serial.print("The Serial Number is: ");
+    Serial.println(serial_number);
+  } 
+  
+  else 
+  {
+    Serial.println("Timeout: No response received.");
+  }
+
+  return serial_number;
+}
+
+uint16_t obtain_serial_number()
+{
+  digitalWrite(DE_1, HIGH);  // Enable driver mode
+  digitalWrite(RE_1, HIGH);  // Disable receiver mode (inverted)
 
   uint16_t serial_number = 0;
   uint8_t received[16] = {0};
   byte dataToSend[2] = {0x01, 0x81};
 
   Serial.println("Sending request...");
-  Serial8.write(dataToSend, sizeof(dataToSend));
-  Serial8.flush();
-
-  digitalWrite(DE_8, LOW);  // Disable driver mode
-  digitalWrite(RE_8, LOW);  // Enable receiver mode (inverted)
+  Serial1.write(dataToSend, sizeof(dataToSend));
+  Serial1.flush();
+  digitalWrite(RE_1, LOW);  // Enable receiver mode (inverted)
+  digitalWrite(DE_1, LOW);  // Disable driver mode
+ 
 
 
 
   unsigned long start = millis();
-  while (Serial8.available() < 16 && (millis() - start < 5000)) 
+  while (Serial1.available() < 16 && (millis() - start < 500)) 
   {
     // wait with timeout
   }
 
-  if (Serial8.available() >= 16) 
+  if (Serial1.available() >= 16) 
   {
     Serial.println("Message Received");
-    Serial8.readBytes(received, 16);
+    Serial1.readBytes(received, 16);
     printByteArrayBinary(received, 16);
 
     for (int i = 8; i > 3; i--) {
       serial_number = (serial_number << 4) | (received[i] & 0x0F);
     }
 
-    Serial.print("The Serial Number is: ");
+    Serial.print("The Serial Number of Serial 8 is: ");
     Serial.println(serial_number);
   } 
   
