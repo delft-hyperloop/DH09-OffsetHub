@@ -133,6 +133,24 @@ void loop()
   {
     uint16_t current_serial_number = Serial_array[i];
 
+    switch(current_serial_number)
+    {
+    case 20640:
+      break;
+    case 31978:
+      break;
+    case 34485:
+      break;
+    case 34486:
+      break;
+    case 34489:
+      break;
+    case 0:
+      break;
+    default:
+      break;
+    }
+
     while (serialPorts[i]->available()) 
     {
       uint8_t byteRead = serialPorts[i]->read();
@@ -173,7 +191,7 @@ void loop()
                 Serial.print(":");
                 Serial_array[i] = obtain_serial_numbers(serialPorts[i], i);
                 Serial.println(Serial_array[i]);
-              }
+              }l
               break;
         }
         //distance_array[i] = processBuffer(buffers[i], dist_array, 16);
