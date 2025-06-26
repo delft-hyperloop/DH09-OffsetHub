@@ -88,15 +88,8 @@ void setup()
 
   for (int i = 0; i < NUM_PORTS; i++) 
   {
-    if (i == 0)
-    {
-      serialPorts[i]->begin(115200, SERIAL_8E1);  // Or whatever baud rate you're using
-    }
-    else
-    {
-      serialPorts[i]->begin(921600, SERIAL_8E1);  // Or whatever baud rate you're using
-    }
-}
+    serialPorts[i]->begin(921600, SERIAL_8E1);  // Or whatever baud rate you're using
+  }
 
   setupREDEPorts();   //  Set RE/DE pins as Output
  // delay(50);
@@ -131,25 +124,6 @@ void loop()
 
   for (int i = 0; i < NUM_PORTS; i++)
   {
-    uint16_t current_serial_number = Serial_array[i];
-
-    switch(current_serial_number)
-    {
-    case 20640:
-      break;
-    case 31978:
-      break;
-    case 34485:
-      break;
-    case 34486:
-      break;
-    case 34489:
-      break;
-    case 0:
-      break;
-    default:
-      break;
-    }
 
     while (serialPorts[i]->available()) 
     {
@@ -161,51 +135,14 @@ void loop()
         
         uint16_t dist_array[2] = {0};
 
-        switch(current_serial_number)
-        {
-          case 20640:
-              distance_array[0] = processBuffer(buffers[i], dist_array, 16);
-              break;
-          case 31978:
-              distance_array[1] = processBuffer(buffers[i], dist_array, 16);
-              break;
-          case 34485:
-              distance_array[2] = processBuffer(buffers[i], dist_array, 16);
-              break;
-          case 34486:
-              distance_array[3] = processBuffer(buffers[i], dist_array, 16);
-              break;
-          case 34489:
-              distance_array[4] = processBuffer(buffers[i], dist_array, 16);
-              break;
-          case 0:
-              distance_array[5] = 0;
-              distance_array[6] = 0;
-              distance_array[7] = 0;
-              break;
-          default:
-            for (int i = 0; i < 8; i++) 
-              {
-                Serial.print("Serial port ");
-                Serial.print(i);
-                Serial.print(":");
-                Serial_array[i] = obtain_serial_numbers(serialPorts[i], i);
-                Serial.println(Serial_array[i]);
-              }l
-              break;
-        }
-        //distance_array[i] = processBuffer(buffers[i], dist_array, 16);
-        // Serial.print("The serial number read out from port :");
-        // Serial.print(i);
-        // // Serial.print("Equals: ");
-        // Serial.println(Serial_array[i]);
+        distance_array[i] = processBuffer(buffers[i], dist_array, 16);
         // Reset buffer index
         bufferIndices[i] = 0;
       }
     }
   }
 
-  if (currentTime - lastPrintTime >= PRINT_INTERVAL) 
+  if (currentTime - lastPrintTime >= 50) 
   {
     lastPrintTime = currentTime;
 
