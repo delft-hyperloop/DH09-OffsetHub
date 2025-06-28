@@ -1,22 +1,20 @@
 #include <Arduino.h>
 #include <FlexCAN_T4.h> 
 
-#define PACKET_SIZE 16  // Size of the packet to read from each serial port
-#define BUFFER_SIZE 32 // Size of the buffer for each port
-
 // *********************************************************
 // *************** CHANGES ALLOWED FROM HERE ***************
 // *********************************************************
 
 // -------- Description of the variables: ----------
 
-// HUB_FRONT: if defined use front hub settings, if commented out use back hub settings
-// NUM_PORTS: amount of physically connected ports
+// HUB_FRONT: if defined, use front hub settings; if commented out, use back hub settings
+// NUM_PORTS: amount of physically connected cables (max 8)
 // CANID1 & CANID2: CAN IDs for the front and back hubs, don't change
-// portLabels: which sensors are connected to the board, no specific order (make something that makes sense)
+// portLabels: which sensors are connected to the board, no predefined order (make something that makes sense)
 // serialPortIndex: to which ports each sensor is connected (follow the order of portLabels)
 
 // Generally, make 'portLabels' an array with sensible order and then 'serialPortIndex' follows its order
+// Of course make sure that the correct sensors are connected to the correct ports
 // The can MSG will follow the order of 'serialPortIndex' (first 4 in CANID1, last 4 in CANID2) (if NUM_PORTS < 8, the rest will be 0)
 
 // --------------------------------------------------
@@ -24,31 +22,35 @@
 // #define HUB_FRONT  // <--- Comment this out for back hub
 
 #ifdef HUB_FRONT
-  #define NUM_PORTS 6
-  #define CANID1 0x100
-  #define CANID2 0x101
+#define NUM_PORTS 6
+#define CANID1 0x100
+#define CANID2 0x101
 
-  const String portLabels[NUM_PORTS] = {"VFL", "VFR", "LFL", "LFR", "LML", "LMR"};
-  const int serialPortIndex[NUM_PORTS] = {2, 3, 4, 6, 5, 7}; // Serial port indices for each label
+const String portLabels[NUM_PORTS] = {"VFL", "VFR", "LFL", "LFR", "LML", "LMR"};
+const int serialPortIndex[NUM_PORTS] = {2, 3, 4, 6, 5, 7}; // Serial port indices for each label
 #else  // Set to Back if HUB_FRONT is not defined
-  #define NUM_PORTS 6 
-  #define CANID1 0x200
-  #define CANID2 0x201
+#define NUM_PORTS 6 
+#define CANID1 0x200
+#define CANID2 0x201
 
-  const String portLabels[NUM_PORTS] = {"VML", "VMR", "VBL", "VBR", "LBL", "LBR"};
-  const int serialPortIndex[NUM_PORTS] = {8, 4, 5, 2, 3, 6}; // Serial port indices for each label
+const String portLabels[NUM_PORTS] = {"VML", "VMR", "VBL", "VBR", "LBL", "LBR"};
+const int serialPortIndex[NUM_PORTS] = {8, 4, 5, 2, 3, 6}; // Serial port indices for each label
 #endif
 
 // *********************************************************
 // *************** CHANGES ZONE OVER ***********************
 // *********************************************************
 
+
+
+
+#define PACKET_SIZE 16  // Size of the packet to read from each serial port
+#define BUFFER_SIZE 32 // Size of the buffer for each port
+
 HardwareSerial* serialPorts[8] = {
   &Serial1, &Serial2, &Serial3, &Serial4,
   &Serial5, &Serial6, &Serial7, &Serial8
 };
-
-
 
 // put function declarations here:
 void printByteArrayBinary(uint8_t *arr, size_t length);
@@ -58,7 +60,6 @@ uint16_t processSerial(HardwareSerial& serialPort, const char* label);
 void setupREDEPorts();
 void enableDriver();
 void enableReceiver();
-
 
 unsigned long printInterval = 500; // milliseconds
 unsigned long lastPrintTime = 0;
@@ -88,8 +89,6 @@ FlexCAN_T4<CAN1, RX_SIZE_256, TX_SIZE_16> can;
 CAN_message_t msg;
 long canMsgCounter = 0;
 
-
-
 void setup() {
   Serial.begin(9600);   // USB serial
 
@@ -107,26 +106,10 @@ void setup() {
   can.setBaudRate(1000000);
 
   setupREDEPorts();   //  Set RE/DE pins as Output
-
-  // if (HUBPLACEMENT == "Front") {
-  //   for (int i = 0; i < NUM_PORTS; i++) {
-  //     portLabels[i] = frontLabels[i];
-  //     serialPorts[i] = frontSerialPorts[i];
-  //   }
-  // } else if (HUBPLACEMENT == "Back") {
-  //   for (int i = 0; i < NUM_PORTS; i++) {
-  //     portLabels[i] = backLabels[i];
-  //     serialPorts[i] = backSerialPorts[i];
-  //   }
-  // } else {
-  //   Serial.println("Invalid HUBPLACEMENT. Please set to 'Front' or 'Back'.");
-  // }
-
 }
 
 void loop() {
   long beginningLoop = micros();
-  unsigned long currentTime = millis();
 
   for (int i = 0; i < 8; i++) {
     while (serialPorts[i]->available()) {
@@ -151,15 +134,13 @@ void loop() {
   }
 
 
-  if (micros() - lastCANsendTime > CANsendInterval) 
-  {
+  if (micros() - lastCANsendTime > CANsendInterval) {
     lastCANsendTime = micros();
     uint8_t can_msg1[8];
     uint8_t can_msg2[8];
 
-  // First 4 uint16 values into CAN message 1
-    for (int i = 0; i < 4; i++) 
-    {
+    // First 4 uint16 values into CAN message 1
+    for (int i = 0; i < 4; i++) {
       can_msg1[i * 2]     = distanceArray[serialPortIndex[i] - 1] & 0xFF;         // Low byte
       can_msg1[i * 2 + 1] = (distanceArray[serialPortIndex[i] - 1] >> 8) & 0xFF;  // High byte
 
@@ -168,55 +149,51 @@ void loop() {
     // Send distance data over CAN
     msg.id = CANID1;
     msg.len = 8;    // Send Eight Bytes (4 Data Points)
-    for (int i = 0; i < 8; i++) 
-    {
+    for (int i = 0; i < 8; i++) {
       msg.buf[i] = can_msg1[i];
     }
     can.write(msg);
     
+    // Only send second CAN message if there are more than 4 ports
     if (NUM_PORTS > 4) {
-    // Next 4 uint16 values into CAN message 2
-    for (int i = 0; i < 4; i++) 
-    {
-      if (i + 4 >= NUM_PORTS) {
-        can_msg2[i * 2]     = 0; // Fill with zero if no more ports
-        can_msg2[i * 2 + 1] = 0; // Fill with zero if no more ports
-        continue;
+      // Next 4 uint16 values into CAN message 2
+      for (int i = 0; i < 4; i++) {
+        // Fill in 0s for unused ports
+        if (i + 4 >= NUM_PORTS) {
+          can_msg2[i * 2]     = 0; 
+          can_msg2[i * 2 + 1] = 0;
+          continue;
+        }
+
+        can_msg2[i * 2]     = distanceArray[serialPortIndex[i + 4] - 1] & 0xFF;
+        can_msg2[i * 2 + 1] = (distanceArray[serialPortIndex[i + 4] - 1] >> 8) & 0xFF;
       }
-      can_msg2[i * 2]     = distanceArray[serialPortIndex[i + 4] - 1] & 0xFF;
-      can_msg2[i * 2 + 1] = (distanceArray[serialPortIndex[i + 4] - 1] >> 8) & 0xFF;
 
-    }
+      
+      // Send distance data over CAN
+      msg.id = CANID2;
+      msg.len = 8;    // Send Eight Bytes (4 Data Points)
+      
+      for (int i = 0; i < 8; i++){
+        msg.buf[i] = can_msg2[i]; 
+      }
 
-    
-    // Send distance data over CAN
-    msg.id = CANID2;
-    msg.len = 8;    // Send Eight Bytes (4 Data Points)
-    
-    for (int i = 0; i < 8; i++)
-    {
-      msg.buf[i] = can_msg2[i]; 
-    }
-
-      can.write(msg);
+        can.write(msg);
     } 
-
     canMsgCounter++;
   }
     
-  
   long endLoop = micros();
-  
   long loopDuration = endLoop - beginningLoop;
+
   if (millis() - lastPrintTime >= printInterval) {
 
-    lastPrintTime = currentTime;
+    lastPrintTime = millis();
     
     Serial.println("\n\n\n\n\n\n\n\n\n\n======================================================================");
     Serial.println("Distance Array: ");
     for (int j = 0; j < NUM_PORTS; j++) 
     {
-      // int port = serialPortIndex[j];
       Serial.print("Serial ");
       Serial.print(serialPortIndex[j]);
       Serial.print(": ");
@@ -231,7 +208,7 @@ void loop() {
       Serial.print(")");
       Serial.println();
 
-      msgCounter[serialPortIndex[j] - 1] = 0; // Reset message counter for this port
+      msgCounter[serialPortIndex[j] - 1] = 0;
       outOfBoundsCounter[serialPortIndex[j] - 1] = 0;
       }
     Serial.println("---------------------------------------------------------------------");
@@ -240,16 +217,12 @@ void loop() {
     Serial.println("Loop Duration: " + String(loopDuration) + " microseconds\n");
     Serial.println("======================================================================");
     Serial.print("Raw readings: [ ");
-    for (int i = 0; i < 8; i++) 
-    {
+    for (int i = 0; i < 8; i++) {
       Serial.print(distanceArray[i]);
       Serial.print(" ");
     }
     Serial.println("]");
-
   }
-
-
 }
 
 void printByteArrayBinary(uint8_t *arr, size_t length) {
@@ -267,12 +240,8 @@ uint16_t processBuffer(byte* buffer, uint16_t* dist_array, int size) {
   
   uint16_t distance_mm = 0;
   uint16_t validgroupcount = 0;
-  //uint8_t valid_buffer[32] = {0};
 
-  for (int i = 0; i <= size - 4; i++) 
-  {
-
-    
+  for (int i = 0; i <= size - 4; i++) {
     uint16_t result = 0;
     byte ref_bits = (buffer[i] >> 4) & 0b11; // extract bits 5 and 4
 
@@ -286,35 +255,23 @@ uint16_t processBuffer(byte* buffer, uint16_t* dist_array, int size) {
       }
     }
 
-    if (group_valid) 
-    {
+    if (group_valid) {
       // Process valid group
-      // Serial.print("Valid group at index ");
-      // Serial.println(i);
-
-      for (int j = 0; j < 4; j++) 
-      {
-        //Serial.println(buffer[i + j], BIN);
-        //valid_buffer[i + j] = buffer[i + j];
+      for (int j = 0; j < 4; j++) {
         result |= (buffer[i+j] & 0x0F) << 4*j;
       }
 
       distance_mm = (2500 + (result * 2500) / 0x4000);
       dist_array[validgroupcount] = distance_mm;
 
-      // Serial.print("za mm :");
-      // Serial.println(distance_mm);
-
       i += 3; // skip ahead by 4 total
       validgroupcount++;
     }
   }
   return distance_mm;
-  //printByteArrayBinary(valid_buffer, 32);
 }
 
-void start_data_stream(void) 
-{
+void start_data_stream(void) {
 
   byte dataToSend[2] = {0x01, 0x87};  // Device Identification
 
