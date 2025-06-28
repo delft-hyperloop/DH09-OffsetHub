@@ -3,30 +3,45 @@
 
 #define PACKET_SIZE 16  // Size of the packet to read from each serial port
 #define BUFFER_SIZE 32 // Size of the buffer for each port
+
+// *********************************************************
+// *************** CHANGES ALLOWED FROM HERE ***************
+// *********************************************************
+
+// -------- Description of the variables: ----------
+
+// HUB_FRONT: if defined use front hub settings, if commented out use back hub settings
+// NUM_PORTS: amount of physically connected ports
+// CANID1 & CANID2: CAN IDs for the front and back hubs, don't change
+// portLabels: which sensors are connected to the board, no specific order (make something that makes sense)
+// serialPortIndex: to which ports each sensor is connected (follow the order of portLabels)
+
+// Generally, make 'portLabels' an array with sensible order and then 'serialPortIndex' follows its order
+// The can MSG will follow the order of 'serialPortIndex' (first 4 in CANID1, last 4 in CANID2) (if NUM_PORTS < 8, the rest will be 0)
+
+// --------------------------------------------------
+
 // #define HUB_FRONT  // <--- Comment this out for back hub
 
 #ifdef HUB_FRONT
-  #define NUM_PORTS 8
+  #define NUM_PORTS 6
   #define CANID1 0x100
   #define CANID2 0x101
 
-  const String portLabels[NUM_PORTS] = {"VFL", "VFR", "LFL", "LFR", "VML", "VMR", "LML", "LMR"};
-  const int serialPortIndex[NUM_PORTS] = {1, 2, 6, 8, 3, 7, 4, 5}; // Serial port indices for each label
-// 3, 4, 1, 2, 6, 
-  
-  bool isFront = true;
-
+  const String portLabels[NUM_PORTS] = {"VFL", "VFR", "LFL", "LFR", "LML", "LMR"};
+  const int serialPortIndex[NUM_PORTS] = {2, 3, 4, 6, 5, 7}; // Serial port indices for each label
 #else  // Set to Back if HUB_FRONT is not defined
-  #define NUM_PORTS 4
+  #define NUM_PORTS 6 
   #define CANID1 0x200
   #define CANID2 0x201
 
-  const String portLabels[4] = {"VBL", "VBR", "LBL", "LBR"};
-  // const int serialPortIndex[NUM_PORTS] = {1, 6, 2, 7}; // Serial port indices for each label
-  const int serialPortIndex[NUM_PORTS] = {5, 3, 4, 8}; // Serial port indices for each label
-  
-  bool isFront = false;
+  const String portLabels[NUM_PORTS] = {"VML", "VMR", "VBL", "VBR", "LBL", "LBR"};
+  const int serialPortIndex[NUM_PORTS] = {8, 4, 5, 2, 3, 6}; // Serial port indices for each label
 #endif
+
+// *********************************************************
+// *************** CHANGES ZONE OVER ***********************
+// *********************************************************
 
 HardwareSerial* serialPorts[8] = {
   &Serial1, &Serial2, &Serial3, &Serial4,
@@ -159,13 +174,18 @@ void loop() {
     }
     can.write(msg);
     
-    // the back hub only has 4 sensors --> less load on the bus
-    if (isFront) {
+    if (NUM_PORTS > 4) {
     // Next 4 uint16 values into CAN message 2
     for (int i = 0; i < 4; i++) 
     {
+      if (i + 4 >= NUM_PORTS) {
+        can_msg2[i * 2]     = 0; // Fill with zero if no more ports
+        can_msg2[i * 2 + 1] = 0; // Fill with zero if no more ports
+        continue;
+      }
       can_msg2[i * 2]     = distanceArray[serialPortIndex[i + 4] - 1] & 0xFF;
       can_msg2[i * 2 + 1] = (distanceArray[serialPortIndex[i + 4] - 1] >> 8) & 0xFF;
+
     }
 
     
@@ -190,21 +210,15 @@ void loop() {
   long loopDuration = endLoop - beginningLoop;
   if (millis() - lastPrintTime >= printInterval) {
 
-    for (int i = 0; i < 8; i++) 
-    {
-      Serial.print(distanceArray[i]);
-      Serial.print(" [");
-    }
-    Serial.println("]");
     lastPrintTime = currentTime;
-
-    Serial.println("\n\n\n\n=================================================================");
+    
+    Serial.println("\n\n\n\n\n\n\n\n\n\n======================================================================");
     Serial.println("Distance Array: ");
     for (int j = 0; j < NUM_PORTS; j++) 
     {
       // int port = serialPortIndex[j];
       Serial.print("Serial ");
-      Serial.print(j + 1);
+      Serial.print(serialPortIndex[j]);
       Serial.print(": ");
       Serial.print(distanceArray[serialPortIndex[j] - 1]);
       Serial.print(" [");
@@ -217,17 +231,25 @@ void loop() {
       Serial.print(")");
       Serial.println();
 
-      // Reset for next loop
-      outOfBoundsCounter[serialPortIndex[j] - 1] = 0;  
-      msgCounter[serialPortIndex[j] - 1] = 0;
-      distanceArray[serialPortIndex[j] - 1] = 0;  
-    }
-    Serial.println("----------------------------------------------------------------");
+      msgCounter[serialPortIndex[j] - 1] = 0; // Reset message counter for this port
+      outOfBoundsCounter[serialPortIndex[j] - 1] = 0;
+      }
+    Serial.println("---------------------------------------------------------------------");
     Serial.println("CAN messages: " + String(canMsgCounter) + " in " + String(printInterval) + " ms");
     canMsgCounter = 0;
     Serial.println("Loop Duration: " + String(loopDuration) + " microseconds\n");
-    Serial.println("=================================================================");
-}
+    Serial.println("======================================================================");
+    Serial.print("Raw readings: [ ");
+    for (int i = 0; i < 8; i++) 
+    {
+      Serial.print(distanceArray[i]);
+      Serial.print(" ");
+    }
+    Serial.println("]");
+
+  }
+
+
 }
 
 void printByteArrayBinary(uint8_t *arr, size_t length) {
